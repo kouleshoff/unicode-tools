@@ -2,6 +2,7 @@ package com.kouleshoff.tools.unicode;
 
 import com.google.common.collect.Lists;
 import com.ibm.icu.lang.UCharacter;
+import com.ibm.icu.lang.UProperty;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -81,7 +82,8 @@ public class BinaryUProperty implements IUPropertyGenerator {
 
     @Override
     public void generateTests(PrintStream out) {
-
+        // foreach UProperty.BLOCK
+        // is_letter('\16#043D;') <> TRUE or # CYRILLIC SMALL LETTER EN
     }
 
     /**

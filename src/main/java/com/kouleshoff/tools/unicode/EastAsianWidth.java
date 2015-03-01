@@ -40,7 +40,9 @@ public class EastAsianWidth implements IUPropertyGenerator {
 
     @Override
     public void generateTests(PrintStream out) {
-
+        // for each block
+        // chr_width('\16#0391;') <> 1 or
+        // chr_width('\16#3301;') <> 2 or
     }
 
     private List<Integer> buildEastAsianWidthTable() {
