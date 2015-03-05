@@ -14,7 +14,7 @@ public class BinaryUProperty implements IUPropertyGenerator {
 
     static int UNICODE_DATA_SIZE = 1 << 21 - 1;
 
-    static int ADDITIONAL_DATA[] = { '_' };
+    static int ADDITIONAL_DATA[] = { };
 
     /**
      * Contains a block of unicode property values
@@ -67,23 +67,44 @@ public class BinaryUProperty implements IUPropertyGenerator {
                 " by calling UCharacter.hasBinaryProperty(c, UProperty.%s) */\n\n",
                   propertyName.toUpperCase());
         BitmapBlock[] res = blocks.toArray(new BitmapBlock[blocks.size()]);
-        out.printf("static const unsigned char unicode_%s_data[%d*64 + 1] = {",
+        out.printf("static const unsigned char unicode_%s_data[%d*64] = {",
                     propertyName.toLowerCase(),
                     counts.getRight());
         printBitmapData(res);
         out.printf("};\n\nstatic const signed char unicode_%s_ind[%d] = {",
                     propertyName.toLowerCase(),
-                    counts.getLeft() + 2);
+                    counts.getLeft() + 1);
         printBitmapIndices(res, counts.getLeft());
         out.printf("};\n");
 
-        out.printf("\n\n/* c < 0x%06x */\n", (counts.getLeft() + 1) * BitmapBlock.SIZE);
+        out.printf("\n\n/* c < 0x%06x */\n", (counts.getLeft()) * BitmapBlock.SIZE);
     }
 
     @Override
     public void generateTests(PrintStream out) {
         // foreach UProperty.BLOCK
-        // is_letter('\16#043D;') <> TRUE or # CYRILLIC SMALL LETTER EN
+        int codePoint = 32;
+        int prevBlockId = -1;
+        int blockStart = -1;
+        while (codePoint < UNICODE_DATA_SIZE) {
+            int blockId = UCharacter.UnicodeBlock.of(codePoint).getID();
+            if (blockId != prevBlockId) {
+                if (blockStart > 0) {
+                    int [] points = new int [] { blockStart, (blockStart + codePoint - 1) / 2, codePoint - 1 };
+                    generateCondition(out, points);
+                }
+                prevBlockId = blockId;
+                blockStart = codePoint;
+            }
+        }
+    }
+
+    private void generateCondition(PrintStream out, int[] points) {
+        for (int i = 0; i < points.length; i++) {
+            String hasProperty = UCharacter.hasBinaryProperty(points[i], this.propertyCode) ? "TRUE" : "FALSE";
+            System.out.printf("  is_letter('\16#%06x;') <> %s or #%s", points[i], hasProperty, UCharacter.getExtendedName(points[i]));
+            // is_letter('\16#043D;') <> TRUE or # CYRILLIC SMALL LETTER EN
+        }
     }
 
     /**
@@ -120,45 +141,52 @@ public class BinaryUProperty implements IUPropertyGenerator {
                         blocks[i].rangeStart + BitmapBlock.SIZE - 1,
                         blocks[i].numOfBits);
                 byte[] bytes = blocks[i].bitSet.toByteArray();
-                for (k = 0; k < 64; ++k) {
-                    if (k % 8 == 0) {
-                        if (k != 0) {
-                            System.out.printf("/* 0x%06x-0x%06x */",
-                                    blocks[i].rangeStart,
-                                    blocks[i].rangeStart + k - 1);
-                        }
+                for (k = 0; k < 64; k+=8) {
+                    if (k % 32 == 0) {
                         System.out.print("\n  ");
                     }
-                    if (k < bytes.length) {
-                        System.out.printf("0x%02x, ", bytes[k]);
-                    }
-                    else {
-                        System.out.print("0x00, ");
-                    }
+                    System.out.printf("0x%s, ", Long.toHexString(to64Bits(bytes, k)));
                 }
-                System.out.printf("/* 0x%06x-0x%06x */",
-                        blocks[i].rangeStart + BitmapBlock.SIZE - 8,
-                        blocks[i].rangeStart + BitmapBlock.SIZE - 1);
             }
         }
         System.out.println("\n  0x00");
     }
 
+    private static long to64Bits(byte[] data, int index) {
+        long value = 0L;
+        int offset = 64 - 8;
+        int endIndex = Math.min(index + 8, data.length);
+        for (int n = index; n < endIndex; n++) {
+            value |= (((long)data[n] & 0xFF) << offset);
+            offset -= 8;
+        }
+        return value;
+    }
+
     private void printBitmapIndices(BitmapBlock[] blocks, int maxIndex) {
         int n, i = 0, k = 0;
         for (n = 0; n < UNICODE_DATA_SIZE && i<= maxIndex; n+= BitmapBlock.SIZE, i++) {
-            if (i % 8 == 0) System.out.print("\n  ");
+            if (i % 8 == 0) {
+                if (i > 0) {
+                    System.out.printf(" /* 0x%06x-0x%06x */",
+                                        blocks[i - 8].rangeStart,
+                                        blocks[i].rangeStart + BitmapBlock.SIZE - 1);
+                }
+                System.out.print("\n  ");
+            }
             if (blocks[i].numOfBits == 0) {
-                System.out.print(" -1, ");
+                System.out.print(" -1");
             }
             else if (blocks[i].numOfBits == BitmapBlock.SIZE) {
-                System.out.print(" -2, ");
+                System.out.print(" -2");
             }
             else {
-                System.out.printf("%3d, ", k++);
+                System.out.printf("%3d", k++);
+            }
+            if (i< maxIndex) {
+                System.out.print(", ");   
             }
         }
-        System.out.print("-1\n");
     }
 
 }

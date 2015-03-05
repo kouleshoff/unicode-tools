@@ -8,7 +8,7 @@ public class UnicodeBitmap {
 
     /**
      * Scan the entire unicode range for specified property
-     * and output C code tables to be used in c_ident.c from libutf8
+     * and output C code tables to be used in C bitmap search code
      * @param args
      */
     public static void main(String[] args) {
@@ -36,7 +36,7 @@ public class UnicodeBitmap {
 
             generator.generateData(System.out);
             if (Iterables.contains(ImmutableList.of(args), "--tests")) {
-                generator.generateData(System.out);
+                generator.generateTests(System.out);
             }
         }
         else {
