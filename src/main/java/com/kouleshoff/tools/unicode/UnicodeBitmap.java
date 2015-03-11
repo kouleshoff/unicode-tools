@@ -1,6 +1,7 @@
 package com.kouleshoff.tools.unicode;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.ibm.icu.lang.UProperty;
 
@@ -16,7 +17,7 @@ public class UnicodeBitmap {
         if (args.length > 0) {
             IUPropertyGenerator generator;
             uPropertyName = args[0].trim();
-            if ("EastAsianWidth".equals(uPropertyName)) {
+            if ("EastAsianWidth".equalsIgnoreCase(uPropertyName)) {
                 generator = new EastAsianWidth();
             }
             else {
@@ -35,7 +36,9 @@ public class UnicodeBitmap {
             }
 
             generator.generateData(System.out);
-            if (Iterables.contains(ImmutableList.of(args), "--tests")) {
+            
+            if (ImmutableSet.copyOf(args).contains("--tests")) {
+                System.out.println();
                 generator.generateTests(System.out);
             }
         }

@@ -11,7 +11,8 @@ jar {
     }
 }
 run {
-	args 'ALPHABETIC', '--tests'
+    /* Need to split the space-delimited value in the exec.args */
+    args System.getProperty("exec.args").split()
 }
 mainClassName = 'com.kouleshoff.tools.unicode.UnicodeBitmap'
 

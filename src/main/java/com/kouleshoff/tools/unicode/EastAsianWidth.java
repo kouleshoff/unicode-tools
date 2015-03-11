@@ -22,27 +22,72 @@ public class EastAsianWidth implements IUPropertyGenerator {
     public void generateData(PrintStream out)
     {
         List<Integer> eastAsianWidth = buildEastAsianWidthTable();
-        out.printf("\n\nint east_asian_width[%d] = {", eastAsianWidth.size());
-        out.print(Joiner.on(",").join(
-            Iterables.transform(
-                eastAsianWidth,
-                new Function<Integer,String>() {
-                    @Nullable
-                    @Override
-                    public String apply(@Nullable Integer input) {
-                        return String.format("0x%06x", input);
-                    }
-                }
-            )
+        out.printf("\n\nint east_asian_width[%d] = {\n", eastAsianWidth.size());
+        out.print(Joiner.on(",\n").join(
+                Iterables.transform(
+                        eastAsianWidth,
+                        new Function<Integer, String>() {
+                            @Nullable
+                            @Override
+                            public String apply(@Nullable Integer input) {
+                                return String.format("0x%06x", input);
+                            }
+                        }
+                )
         ));
         out.print("};\n");
     }
 
     @Override
     public void generateTests(PrintStream out) {
-        // for each block
-        // chr_width('\16#0391;') <> 1 or
-        // chr_width('\16#3301;') <> 2 or
+        int ch = 32;
+        int blockStart = 0;
+        int lastWidth = UCharacter.EastAsianWidth.NEUTRAL;
+        out.printf("const proc: check_width is func\n" +
+                "  local\n" +
+                "    var boolean: success is TRUE;\n" +
+                "  begin\n");
+        while (ch < UNICODE_DATA_SIZE) {
+            int width = UCharacter.getIntPropertyValue(++ch, UProperty.EAST_ASIAN_WIDTH);
+            if (width != lastWidth) {
+                if (blockStart > 0) {
+                    int midCh = (ch - blockStart) / 2;
+                    printCheckExpr(out, blockStart);
+                    if (midCh != 0) {
+                        printCheckExpr(out, blockStart + midCh);
+                    }
+                }
+                lastWidth = width;
+                blockStart = ch;
+            }
+        }
+        out.printf("    if success then\n" +
+                        "      writeln(\"width function works correctly.\");\n" +
+                        "    end if;\n" +
+                        "  end func;\n\n\n");
+    }
+
+    private void printCheckExpr(PrintStream out, int ch) {
+        int width = 1;
+        if (UCharacter.isISOControl(ch) ||
+                UCharacter.hasBinaryProperty(ch, UProperty.DEFAULT_IGNORABLE_CODE_POINT) ||
+                UCharacter.hasBinaryProperty(ch, UProperty.DIACRITIC) ||
+                UCharacter.hasBinaryProperty(ch, UProperty.EXTENDER)) {
+            width = 0;
+        }
+        else {
+            int eaw = UCharacter.getIntPropertyValue(ch, UProperty.EAST_ASIAN_WIDTH);
+            if (eaw == UCharacter.EastAsianWidth.WIDE) {
+                width = 2;
+            }
+        }
+        String extName = UCharacter.getExtendedName(ch);
+        out.printf("    if width('\\16#%05x;') <> %d then " +
+                        "writeln(\"width(#%5x) incorrect\"); success := FALSE; end if; # %s\n",
+                ch,
+                width,
+                ch,
+                extName);
     }
 
     private List<Integer> buildEastAsianWidthTable() {

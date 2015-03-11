@@ -10,3 +10,11 @@ usage: UnicodeBitmap <UProperty> [--tests]
 	where <UProperty> is *EastAsianWidth* or *ALPHABETIC* or another field of UProperty class
 
 "--tests" argument also generates test cases for that property
+
+### Using gradle run task
+Need to pass the arguments as a Java property exec.args
+
+```
+gradle run -Dexec.args="ALPHABETIC --tests"
+gradle run -Dexec.args="EastAsianWidth -- tests"
+```

@@ -1,5 +1,6 @@
 package com.kouleshoff.tools.unicode;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.ibm.icu.lang.UCharacter;
 import com.ibm.icu.lang.UProperty;
@@ -46,7 +47,15 @@ public class BinaryUProperty implements IUPropertyGenerator {
 
     public BinaryUProperty(int propertyCode, String name) {
         this.propertyCode = propertyCode;
-        this.propertyName = name;
+        if (propertyCode == UProperty.ALPHABETIC) {
+            this.propertyName = "Letter";
+        }
+        else {
+            this.propertyName = name.toLowerCase();
+            this.propertyName = Character
+                    .toUpperCase(this.propertyName.charAt(0)) +
+                     this.propertyName.substring(1);
+        }
     }
 
     @Override
@@ -86,24 +95,47 @@ public class BinaryUProperty implements IUPropertyGenerator {
         int codePoint = 32;
         int prevBlockId = -1;
         int blockStart = -1;
-        while (codePoint < UNICODE_DATA_SIZE) {
+        out.printf("const proc: check_is%s is func\n" +
+                "  local\n" +
+                "    var boolean: success is TRUE;\n" +
+                "  begin\n", propertyName);
+        for (;codePoint < UNICODE_DATA_SIZE; codePoint++) {
             int blockId = UCharacter.UnicodeBlock.of(codePoint).getID();
             if (blockId != prevBlockId) {
                 if (blockStart > 0) {
-                    int [] points = new int [] { blockStart, (blockStart + codePoint - 1) / 2, codePoint - 1 };
+                    int incr = (codePoint - blockStart + 1) / 4;
+                    int [] points = new int [] {
+                            blockStart,
+                            blockStart + incr,
+                            blockStart + incr * 2,
+                            blockStart + incr * 3 };
                     generateCondition(out, points);
                 }
                 prevBlockId = blockId;
                 blockStart = codePoint;
             }
         }
+        out.printf("    if success then\n" +
+                "      writeln(\"is%s function works correctly.\");\n" +
+                "    end if;\n" +
+                "  end func;\n\n\n",
+                propertyName,
+                propertyName);
     }
 
     private void generateCondition(PrintStream out, int[] points) {
         for (int i = 0; i < points.length; i++) {
-            String hasProperty = UCharacter.hasBinaryProperty(points[i], this.propertyCode) ? "TRUE" : "FALSE";
-            System.out.printf("  is_letter('\16#%06x;') <> %s or #%s", points[i], hasProperty, UCharacter.getExtendedName(points[i]));
-            // is_letter('\16#043D;') <> TRUE or # CYRILLIC SMALL LETTER EN
+            String hasProperty = UCharacter.hasBinaryProperty(points[i], this.propertyCode) ? "TRUE " : "FALSE";
+            String extName = UCharacter.getExtendedName(points[i]);
+            if (extName == null || extName.contains("unassigned-")) continue;
+            out.printf("    if is%s('\\16#%05x;') <> %s then " +
+                           "writeln(\"is%s( #%5x ) incorrect\"); success := FALSE; end if; # %s\n",
+                        propertyName,
+                        points[i],
+                        hasProperty,
+                        propertyName,
+                        points[i],
+                        extName);
         }
     }
 
@@ -145,22 +177,34 @@ public class BinaryUProperty implements IUPropertyGenerator {
                     if (k % 32 == 0) {
                         System.out.print("\n  ");
                     }
-                    System.out.printf("0x%s, ", Long.toHexString(to64Bits(bytes, k)));
+                    String hex = toHexString(bytes, k);
+                    System.out.printf("0x%sL, ", hex);
                 }
             }
         }
         System.out.println("\n  0x00");
     }
 
-    private static long to64Bits(byte[] data, int index) {
-        long value = 0L;
-        int offset = 64 - 8;
+    /**
+     * Converts up to 8 bytes of binary data
+     * to a hexadecimal string assuming the
+     * representation is Little Endian for each 64-bit block
+     * The data is padded by 00 to the left
+     * @param data
+     * @param index
+     * @return
+     */
+    private static String toHexString(byte[] data, int index) {
+        int n;
+        StringBuilder sb = new StringBuilder();
         int endIndex = Math.min(index + 8, data.length);
-        for (int n = index; n < endIndex; n++) {
-            value |= (((long)data[n] & 0xFF) << offset);
-            offset -= 8;
+        for (n = index + 8 - 1; n >= index && n >= endIndex; n--) {
+            sb.append("00");
         }
-        return value;
+        for (; n >= index; n--) {
+            sb.append(String.format("%02x", data[n]));
+        }
+        return sb.toString();
     }
 
     private void printBitmapIndices(BitmapBlock[] blocks, int maxIndex) {
